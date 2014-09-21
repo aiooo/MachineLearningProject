@@ -1,0 +1,90 @@
+Practical Machine Learning Project - Peer Assessment
+========================================================
+
+## Overview
+The goal of the project is  to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants and predict the correct /incorrect way of performing barbell lifts.
+Tha algorithm for prediction has been created basing on randomForest function from the 'caret' package. The results allow us to predict the performance basing on selected 53 variables.
+
+## Getting and cleaning data
+
+The first step was to read the data and libraries needed for performing the prediction:
+```{r}
+setwd("/Users/barbara/Data")
+
+library(caret)
+library(randomForest)
+
+trainingData<-read.csv("pml-training.csv")
+dim(trainingData)
+testData<-read.csv("pml-testing.csv")
+dim(testData)
+```
+
+Cleaning data included changing factor into numeric values, skipping irrelevant data and data with high amount of NA. The result is a data frame with 19622 rows and 54 columns (including 'classe' column). Since there are zero and negative values in the data, logarithms cannot be calculated.
+
+```{r, results="hide"}
+
+trainingData2<-trainingData[,colSums(is.na(trainingData)) < 1000]
+trainingData2<-trainingData2[,c(3, 4, 7:11, 21:42, 49:51, 61:72, 84:93)]
+```
+
+
+Finally the dataset was split into training and validating ('testing') set.
+```{r}
+inTrain<-createDataPartition(trainingData2[,1], p=0.75, list=FALSE)
+training<-trainingData2[ inTrain,]
+testing<-trainingData2[-inTrain,]
+
+```
+
+
+## Exploratory analysis
+
+Plotting the one-by-one relations showed that it's impossible to find a few major coefficients influencing the result.
+The correlation analysis showed that many of the coefficients are correlated (ie. gyros_arm_y, gyros_arm_x; magnet_arm_x, accel_arm_x; magnet_arm_z, magnet_arm_y). 
+This indicates that data need preprocessing and multifactor analysis algorithm, such as random forest.
+
+
+```{r, results="hide", eval=FALSE}
+plot(trainingData2[,1]~., trainingData2)
+
+corr<-abs(cor(trainingData2[,-54]))
+diag(corr)<-0
+which(corr>0.8, arr.ind=TRUE)
+```
+
+##Training and validation 
+
+Two random forest analyses, performed both with and without PCA preprocessing, revealed  very similar results. Below I present un-preprocessed data, which did a little better in accuracy and Kappa testing.
+
+```{r, cache=TRUE}
+fitForest<-train(training$classe~., data=training, method="rf", prox=TRUE)
+```
+
+```{r}
+fitForest
+fitForest$finalModel
+```
+
+Validation has been performed on the pprepared 'testing' dataset. The result of prediction, compared with the 'true' data, shows very high accuracy, sensivity and specificity of the model. 
+
+```{r, results="hide"}
+pred<-predict(fitForest, testing)
+confusionMatrix(pred, testing[,1])
+```
+
+## Testing 
+
+To test the model on a test dataset, the data had to be prepared (the number of columns reduced in accordance with the training dataset).
+
+```{r, results="hide"}
+testData2<-testData[intersect(colnames(trainingData2),colnames(testData))]
+dim(testData2)
+```
+
+The following code served for generating the predictions for the automatic submission.
+```{r, results="hide"}
+predictions <- predict(fitForest,testData2)
+```
+
+
